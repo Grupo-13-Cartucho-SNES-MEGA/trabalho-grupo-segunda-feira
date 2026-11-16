@@ -1,0 +1,190 @@
+// Arquivo: clientes.h | Autor: Matheus Martins de Souza (RGM 04924767-1)
+// MODULO 1: GESTAO DE CLIENTES DA LOCADORA (persistencia em clientes.csv)
+#ifndef CLIENTES_H
+#define CLIENTES_H
+
+#include "utils.h"
+
+#define MAX_CLIENTES 50
+#define LIMITE_DEBITO 100.00f  
+
+struct Cliente {
+    int idCliente;
+    char nome[50];
+    char telefone[20];
+    float saldoDevedor;
+    int ativo;               // 1 = Ativo, 0 = Suspenso
+};
+struct Cliente listaClientes[MAX_CLIENTES];
+int totalClientes = 0;
+int clientePossuiLocacaoAberta(int idCliente);
+
+// 1. PERSISTENCIA: regrava o vetor inteiro em clientes.csv (modo "w" zera o arquivo)
+void salvarClientesCSV() {
+    FILE *arq = fopen("clientes.csv", "w");
+    if (arq == NULL) {
+        printf("[ERRO] Nao foi possivel gravar clientes.csv!\n");
+        return;
+    }
+    for (int i = 0; i < totalClientes; i++) {
+        fprintf(arq, "%d;%s;%s;%.2f;%d\n",
+                listaClientes[i].idCliente,
+                listaClientes[i].nome,
+                listaClientes[i].telefone,
+                listaClientes[i].saldoDevedor,
+                listaClientes[i].ativo);
+    }
+    fclose(arq);
+}
+
+// 2. PERSISTENCIA: le clientes.csv ao abrir o programa
+void carregarClientesCSV() {
+    FILE *arq = fopen("clientes.csv", "r");
+    if (arq == NULL) return; // primeira execucao: comeca com 0 registros
+    totalClientes = 0;
+    while (totalClientes < MAX_CLIENTES &&
+           fscanf(arq, "%d;%49[^;];%19[^;];%f;%d\n",
+                  &listaClientes[totalClientes].idCliente,
+                  listaClientes[totalClientes].nome,
+                  listaClientes[totalClientes].telefone,
+                  &listaClientes[totalClientes].saldoDevedor,
+                  &listaClientes[totalClientes].ativo) == 5) {
+        totalClientes++;
+    }
+    fclose(arq);
+}
+
+// 3. Retorna a posicao do ID no vetor, ou -1 se nao existir
+int buscarIndiceCliente(int idProcurado) {
+    for (int i = 0; i < totalClientes; i++) {
+        if (listaClientes[i].idCliente == idProcurado) return i;
+    }
+    return -1;
+}
+
+// 4. CADASTRO (com trava de ID repetido e gravacao no CSV)
+void cadastrarCliente() {
+    if (totalClientes >= MAX_CLIENTES) {
+        printf("[ERRO] Cadastro de clientes lotado (%d)!\n", MAX_CLIENTES);
+        return;
+    }
+    int id = lerInteiro("\nID do novo cliente: ");
+    if (id <= 0) { printf("[ERRO] O ID deve ser maior que zero!\n"); return; }
+    if (buscarIndiceCliente(id) != -1) {
+        printf("[ERRO] Ja existe um cliente com o ID %d!\n", id);
+        return;
+    }
+    struct Cliente *c = &listaClientes[totalClientes];
+    c->idCliente = id;
+    lerTexto("Nome completo: ", c->nome, sizeof(c->nome));
+    lerTexto("Telefone: ", c->telefone, sizeof(c->telefone));
+    c->saldoDevedor = lerFloat("Saldo devedor inicial (R$): ");
+    if (c->saldoDevedor < 0) c->saldoDevedor = 0;
+    c->ativo = 1;
+    totalClientes++;
+    salvarClientesCSV();
+    printf("[OK] Cliente salvo com sucesso em 'clientes.csv'!\n");
+}
+
+// 5. LISTAGEM FORMATADA
+void listarClientes() {
+    printf("\n--- CLIENTES DA LOCADORA (%d registros) ---\n", totalClientes);
+    for (int i = 0; i < totalClientes; i++) {
+        printf("ID: %-3d | %-24s | %-16s | Deve: R$ %7.2f | %s\n",
+               listaClientes[i].idCliente, listaClientes[i].nome,
+               listaClientes[i].telefone, listaClientes[i].saldoDevedor,
+               listaClientes[i].ativo ? "Ativo" : "Suspenso");
+    }
+}
+
+// 6. BUSCA TEXTUAL por parte do nome (strstr dentro de contemTexto)
+void buscarClientePorNome() {
+    char termo[50];
+    lerTexto("\nDigite parte do nome do cliente: ", termo, sizeof(termo));
+    int achou = 0;
+    for (int i = 0; i < totalClientes; i++) {
+        if (contemTexto(listaClientes[i].nome, termo)) {
+            printf(" -> [%d] %s | %s | Deve: R$ %.2f | %s\n",
+                   listaClientes[i].idCliente, listaClientes[i].nome,
+                   listaClientes[i].telefone, listaClientes[i].saldoDevedor,
+                   listaClientes[i].ativo ? "Ativo" : "Suspenso");
+            achou++;
+        }
+    }
+    if (!achou) printf("Nenhum cliente encontrado para '%s'.\n", termo);
+}
+
+// 7. EDICAO na memoria + reescrita total do CSV
+void editarCliente() {
+    int id = lerInteiro("\nID do cliente que deseja EDITAR: ");
+    int pos = buscarIndiceCliente(id);
+    if (pos == -1) { printf("[ERRO] Cliente nao encontrado!\n"); return; }
+    struct Cliente *c = &listaClientes[pos];
+    printf("Editando '%s' (Deve: R$ %.2f | %s)\n", c->nome, c->saldoDevedor,
+           c->ativo ? "Ativo" : "Suspenso");
+    printf("1. Nome | 2. Telefone | 3. Saldo devedor | 4. Ativar/Suspender | 0. Cancelar\n");
+    int campo = lerInteiro("O que deseja alterar? ");
+    switch (campo) {
+        case 1: lerTexto("Novo nome: ", c->nome, sizeof(c->nome)); break;
+        case 2: lerTexto("Novo telefone: ", c->telefone, sizeof(c->telefone)); break;
+        case 3:
+            c->saldoDevedor = lerFloat("Novo saldo devedor (R$): ");
+            if (c->saldoDevedor < 0) c->saldoDevedor = 0;
+            break;
+        case 4: c->ativo = !c->ativo; break;
+        case 0: printf("Edicao cancelada.\n"); return;
+        default: printf("[ERRO] Opcao invalida!\n"); return;
+    }
+    salvarClientesCSV();
+    printf("[OK] Cliente atualizado na memoria e no arquivo CSV!\n");
+}
+
+// 8. REMOCAO fisica no vetor + reescrita do CSV (com regras de negocio)
+void removerCliente() {
+    int id = lerInteiro("\nID do cliente que deseja REMOVER: ");
+    int pos = buscarIndiceCliente(id);
+    if (pos == -1) { printf("[ERRO] Cliente nao encontrado!\n"); return; }
+    if (clientePossuiLocacaoAberta(id)) {
+        printf("[ERRO] Cliente possui locacao em aberto. Registre a devolucao antes!\n");
+        return;
+    }
+    if (listaClientes[pos].saldoDevedor > 0) {
+        printf("[ERRO] Cliente ainda deve R$ %.2f. Quite o saldo (opcao Editar) antes de remover!\n",
+               listaClientes[pos].saldoDevedor);
+        return;
+    }
+    if (!confirmar("Confirma a remocao? (s/n): ")) { printf("Remocao cancelada.\n"); return; }
+    for (int j = pos; j < totalClientes - 1; j++) {
+        listaClientes[j] = listaClientes[j + 1]; // puxa a fila para cobrir o item apagado
+    }
+    totalClientes--;
+    salvarClientesCSV();
+    printf("[OK] Cliente removido do sistema e do CSV!\n");
+}
+
+// 9. SUBMENU (cada case chama sua propria funcao)
+void moduloClientes() {
+    int op;
+    do {
+        limparTela();
+        printf("\n--- [MODULO 1: GESTAO DE CLIENTES (Matheus)] ---\n");
+        printf("1. Cadastrar Novo Cliente\n");
+        printf("2. Listar Clientes\n");
+        printf("3. Buscar Cliente por Nome\n");
+        printf("4. Editar Dados ou Saldo do Cliente\n");
+        printf("5. Remover Cliente\n");
+        printf("0. Voltar ao Menu Principal\n");
+        op = lerInteiro("Escolha uma acao: ");
+        switch (op) {
+            case 1: cadastrarCliente(); pausar(); break;
+            case 2: listarClientes(); pausar(); break;
+            case 3: buscarClientePorNome(); pausar(); break;
+            case 4: editarCliente(); pausar(); break;
+            case 5: removerCliente(); pausar(); break;
+            case 0: printf("\nRetornando ao menu principal...\n"); break;
+            default: printf("\n[ERRO] Opcao invalida no Modulo de Clientes!\n"); pausar();
+        }
+    } while (op != 0);
+}
+
+#endif 
