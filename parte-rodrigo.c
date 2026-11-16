@@ -1,5 +1,8 @@
 // Arquivo: locacoes.h | Autor: Rodrigo Lopes Miguel (RGM 04912504-4)
 // MODULO 4: LOCACOES E RELATORIOS ANALITICOS (persistencia em locacoes.csv)
+// Regras do modulo: aluguel de 1 a 30 dias | cliente ativo e com divida abaixo do limite
+// Cruza os modulos: Clientes (saldo), Cartuchos (estoque) e Acessorios (manutencao na devolucao)
+// Status da locacao: 0 = em aberto | 1 = devolvida | 2 = cancelada
 #ifndef LOCACOES_H
 #define LOCACOES_H
 
